@@ -1,18 +1,49 @@
 Parameters:
   DistributionId:
     Type: String
-    Default: E2MLOSWMGG0NUF
   SNSTopicArn:
     Type: String
     Description: SNS topic ARN for alarm notifications
-  ThresholdBytes:
-    Description: "The threshold of the alarm. Default: 150GB/min (~20Gbps)"
+  ThroughputThresholdBytes:
+    Type: Number
+    Description: "The threshold (bytes/min) of the alarm. Default: 150GB/min (~20Gbps, 50% of default quota)"
     Default: 150000000000
+  RequestsPerMinuteThreshold:
+    Type: Number
+    Description: "The threshold (requests/min) of the alarm. Default: 4,200,000, 70% of default quota"
+    Default: 4200000
+
 Resources:
-  DistroAlarm:
+  RequestsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm on high requests per second
+      ActionsEnabled: True
+      AlarmActions: 
+          - !Ref SNSTopicArn
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      Threshold: !Ref RequestsPerMinuteThreshold
+      Metrics:
+        - Id: rps
+          Label: RequestsPerSecond
+          MetricStat:
+            Metric:
+              Namespace: AWS/CloudFront
+              MetricName: Requests
+              Dimensions:
+                - Name: Region
+                  Value: Global
+                - Name: DistributionId
+                  Value: !Ref DistributionId
+            Period: 60
+            Stat: Sum
+            Unit: Count
+
+  ThroughputAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties: 
-      AlarmName: !Sub ${DistributionId}-HighThroughput
       AlarmDescription: Alarm on high CloudFront bandwidth for the specified distribution
       ActionsEnabled: True
       AlarmActions: 
@@ -20,7 +51,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       DatapointsToAlarm: 1
       EvaluationPeriods: 1
-      Threshold: !Ref ThresholdBytes
+      Threshold: !Ref ThroughputThresholdBytes
       Metrics: 
         - Id: rx
           Label: BytesUploaded
